@@ -1,0 +1,58 @@
+name: Build ESP32-S3 OpenMV Firmware
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+        
+    - name: Install ESP-IDF dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git wget flex bison gperf python3 python3-pip \
+          python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util \
+          libusb-1.0-0
+          
+    - name: Install ESP-IDF v4.4.8
+      run: |
+        git clone -b release/v4.4 --recursive https://github.com/espressif/esp-idf.git $HOME/esp-idf
+        cd $HOME/esp-idf
+        ./install.sh
+        
+    - name: Build firmware
+      run: |
+        source $HOME/esp-idf/export.sh
+        cd $GITHUB_WORKSPACE/project/ksdiy
+        
+        # ========== 新增：适配 ESP32-S3 N16R8 配置 ==========
+        # 1. 设置 Flash 大小为 16MB
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" >> sdkconfig
+        # 2. 禁用 8MB Flash 选项（如果存在）
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n" >> sdkconfig
+        # 3. 设置 PSRAM 为 Octal 模式（8MB）
+        echo "CONFIG_SPIRAM_MODE_OCT=y" >> sdkconfig
+        echo "CONFIG_SPIRAM_SIZE_8MB=y" >> sdkconfig
+        # 4. 可选：确保 Flash 模式为 DIO，频率 80MHz
+        echo "CONFIG_ESPTOOLPY_FLASHMODE_DIO=y" >> sdkconfig
+        echo "CONFIG_ESPTOOLPY_FLASHFREQ_80M=y" >> sdkconfig
+        # ==============================================
+        
+        make
+        
+    - name: Upload firmware artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: openmv-esp32s3-firmware
+        path: |
+          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.bin
+          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.elf
+        retention-days: 30
