@@ -28,24 +28,32 @@ jobs:
         cd $HOME/esp-idf
         ./install.sh
         
+    - name: Configure for N16R8 (16MB Flash + 8MB Octal PSRAM)
+      run: |
+        cd $GITHUB_WORKSPACE/project/ksdiy
+        # 创建配置文件，强制覆盖默认设置
+        cat > sdkconfig.defaults << EOF
+        CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+        CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n
+        CONFIG_SPIRAM_MODE_OCT=y
+        CONFIG_SPIRAM_SIZE_8MB=y
+        CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+        CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+        EOF
+        
     - name: Build firmware
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
-        
-        # ========== 新增：适配 ESP32-S3 N16R8 配置 ==========
-        # 1. 设置 Flash 大小为 16MB
-        echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" >> sdkconfig
-        # 2. 禁用 8MB Flash 选项（如果存在）
-        echo "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n" >> sdkconfig
-        # 3. 设置 PSRAM 为 Octal 模式（8MB）
-        echo "CONFIG_SPIRAM_MODE_OCT=y" >> sdkconfig
-        echo "CONFIG_SPIRAM_SIZE_8MB=y" >> sdkconfig
-        # 4. 可选：确保 Flash 模式为 DIO，频率 80MHz
-        echo "CONFIG_ESPTOOLPY_FLASHMODE_DIO=y" >> sdkconfig
-        echo "CONFIG_ESPTOOLPY_FLASHFREQ_80M=y" >> sdkconfig
-        # ==============================================
-        
+        # 删除旧的配置缓存
+        rm -f sdkconfig
+        # 重新生成配置（会读取 sdkconfig.defaults）
+        idf.py reconfigure
+        # 验证配置是否生效（调试用）
+        echo "=== Checking Flash configuration ==="
+        grep "CONFIG_ESPTOOLPY_FLASHSIZE" sdkconfig || echo "Flash size config not found!"
+        echo "====================================="
+        # 编译
         make
         
     - name: Upload firmware artifacts
