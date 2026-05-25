@@ -1,66 +1,36 @@
-name: Build ESP32-S3 OpenMV Firmware
-
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-22.04
+- name: Build firmware
+  run: |
+    source $HOME/esp-idf/export.sh
+    cd $GITHUB_WORKSPACE/project/ksdiy
     
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
-        
-    - name: Install ESP-IDF dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y git wget flex bison gperf python3 python3-pip \
-          python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util \
-          libusb-1.0-0
-          
-    - name: Install ESP-IDF v4.4.8
-      run: |
-        git clone -b release/v4.4 --recursive https://github.com/espressif/esp-idf.git $HOME/esp-idf
-        cd $HOME/esp-idf
-        ./install.sh
-        
-    - name: Configure for N16R8 (16MB Flash + 8MB Octal PSRAM)
-      run: |
-        cd $GITHUB_WORKSPACE/project/ksdiy
-        # 创建配置文件，强制覆盖默认设置
-        cat > sdkconfig.defaults << EOF
-        CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
-        CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n
-        CONFIG_SPIRAM_MODE_OCT=y
-        CONFIG_SPIRAM_SIZE_8MB=y
-        CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
-        CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
-        EOF
-        
-    - name: Build firmware
-      run: |
-        source $HOME/esp-idf/export.sh
-        cd $GITHUB_WORKSPACE/project/ksdiy
-        # 删除旧的配置缓存
-        rm -f sdkconfig
-        # 重新生成配置（会读取 sdkconfig.defaults）
-        idf.py reconfigure
-        # 验证配置是否生效（调试用）
-        echo "=== Checking Flash configuration ==="
-        grep "CONFIG_ESPTOOLPY_FLASHSIZE" sdkconfig || echo "Flash size config not found!"
-        echo "====================================="
-        # 编译
-        make
-        
-    - name: Upload firmware artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: openmv-esp32s3-firmware
-        path: |
-          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.bin
-          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.elf
-        retention-days: 30
+    # 方法1：通过 idf.py set-property 设置（如果支持）
+    # 方法2：直接修改 sdkconfig 文件中的配置（保留原有内容，只追加/修改）
+    
+    # 备份原配置
+    cp sdkconfig sdkconfig.bak 2>/dev/null || true
+    
+    # 使用 sed 修改或添加配置项（安全方式）
+    # 修改 Flash 大小
+    sed -i 's/CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y/CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y/g' sdkconfig || echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" >> sdkconfig
+    sed -i '/CONFIG_ESPTOOLPY_FLASHSIZE_8MB/d' sdkconfig
+    
+    # 修改 PSRAM 配置
+    sed -i 's/CONFIG_SPIRAM_MODE_QUAD=y/CONFIG_SPIRAM_MODE_OCT=y/g' sdkconfig || echo "CONFIG_SPIRAM_MODE_OCT=y" >> sdkconfig
+    sed -i 's/CONFIG_SPIRAM_SIZE_4MB=y/CONFIG_SPIRAM_SIZE_8MB=y/g' sdkconfig || echo "CONFIG_SPIRAM_SIZE_8MB=y" >> sdkconfig
+    
+    # 确保没有冲突配置
+    sed -i '/CONFIG_ESPTOOLPY_FLASHSIZE_16MB=/d' sdkconfig
+    echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" >> sdkconfig
+    sed -i '/CONFIG_SPIRAM_MODE_OCT=/d' sdkconfig
+    echo "CONFIG_SPIRAM_MODE_OCT=y" >> sdkconfig
+    sed -i '/CONFIG_SPIRAM_SIZE_8MB=/d' sdkconfig
+    echo "CONFIG_SPIRAM_SIZE_8MB=y" >> sdkconfig
+    
+    # 验证配置
+    echo "=== Final Flash Configuration ==="
+    grep "CONFIG_ESPTOOLPY_FLASHSIZE" sdkconfig || true
+    grep "CONFIG_SPIRAM" sdkconfig | grep -E "(MODE|SIZE)" || true
+    echo "================================="
+    
+    # 直接编译（不重新生成）
+    make
