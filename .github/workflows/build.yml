@@ -3,7 +3,7 @@ name: Build ESP32-S3 OpenMV Firmware
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:    # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,7 +13,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: 'recursive'    # 关键：递归下载子模块
+        submodules: 'recursive'
         
     - name: Install ESP-IDF dependencies
       run: |
@@ -24,16 +24,14 @@ jobs:
           
     - name: Install ESP-IDF v4.4.8
       run: |
-        cd ~
-        git clone -b release/v4.4 --recursive https://github.com/espressif/esp-idf.git
-        cd esp-idf
+        git clone -b release/v4.4 --recursive https://github.com/espressif/esp-idf.git $HOME/esp-idf
+        cd $HOME/esp-idf
         ./install.sh
-        echo "IDF_PATH=~/esp-idf" >> $GITHUB_ENV
         
     - name: Build firmware
       run: |
-        source ~/esp-idf/export.sh
-        cd project/ksdiy
+        source $HOME/esp-idf/export.sh
+        cd $GITHUB_WORKSPACE/project/ksdiy
         make
         
     - name: Upload firmware artifacts
@@ -41,6 +39,6 @@ jobs:
       with:
         name: openmv-esp32s3-firmware
         path: |
-          project/ksdiy/build-GENERIC_S3/*.bin
-          project/ksdiy/build-GENERIC_S3/*.elf
+          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.bin
+          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.elf
         retention-days: 30
