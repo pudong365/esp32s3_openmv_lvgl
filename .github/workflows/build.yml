@@ -1,4 +1,4 @@
-name: Build ESP32-S3 OpenMV
+name: Build ESP32-S3 OpenMV Firmware for N16R8
 
 on:
   workflow_dispatch:
@@ -26,23 +26,29 @@ jobs:
         cd $HOME/esp-idf
         ./install.sh
 
-    - name: Build firmware
+    - name: Configure and Build firmware
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
+        
+        # 清理旧配置
         rm -rf build sdkconfig
+        
+        # 设置目标芯片
         idf.py set-target esp32s3
-        cp /dev/null sdkconfig.defaults
-        echo 'CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y' | tee -a sdkconfig.defaults
-        echo 'CONFIG_SPIRAM=y' | tee -a sdkconfig.defaults
-        echo 'CONFIG_SPIRAM_MODE_OCT=y' | tee -a sdkconfig.defaults
-        echo 'CONFIG_SPIRAM_SIZE=8' | tee -a sdkconfig.defaults
+        
+        # 关键：通过环境变量设置 Flash 和 PSRAM，完全避免 YAML 解析问题
+        export CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+        export CONFIG_SPIRAM=y
+        export CONFIG_SPIRAM_MODE_OCT=y
+        
+        # 编译
         idf.py build
 
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: openmv-esp32s3-firmware
+        name: esp32s3_n16r8_firmware
         path: |
           ${{ github.workspace }}/project/ksdiy/build/bootloader/bootloader.bin
           ${{ github.workspace }}/project/ksdiy/build/partition_table/partition-table.bin
