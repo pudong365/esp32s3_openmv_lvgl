@@ -32,15 +32,13 @@ jobs:
         cd $GITHUB_WORKSPACE/project/ksdiy
         rm -rf build sdkconfig
         idf.py set-target esp32s3
-        cat > sdkconfig.defaults << EOF
-CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
-CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n
-CONFIG_SPIRAM=y
-CONFIG_SPIRAM_MODE_OCT=y
-CONFIG_SPIRAM_SIZE=8
-CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
-CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
-EOF
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" > sdkconfig.defaults
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n" >> sdkconfig.defaults
+        echo "CONFIG_SPIRAM=y" >> sdkconfig.defaults
+        echo "CONFIG_SPIRAM_MODE_OCT=y" >> sdkconfig.defaults
+        echo "CONFIG_SPIRAM_SIZE=8" >> sdkconfig.defaults
+        echo "CONFIG_ESPTOOLPY_FLASHMODE_DIO=y" >> sdkconfig.defaults
+        echo "CONFIG_ESPTOOLPY_FLASHFREQ_80M=y" >> sdkconfig.defaults
         idf.py build
 
     - name: Upload firmware artifacts
