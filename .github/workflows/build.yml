@@ -30,16 +30,8 @@ jobs:
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
-
-        # 1. 清理环境
         rm -rf build sdkconfig
-
-        # 2. 设置目标芯片
         idf.py set-target esp32s3
-
-        # 3. 关键：通过配置文件适配 N16R8 硬件
-        #    - Flash 大小 16MB
-        #    - 启用 Octal PSRAM
         cat > sdkconfig.defaults << EOF
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n
@@ -49,8 +41,6 @@ CONFIG_SPIRAM_SIZE=8
 CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 EOF
-
-        # 4. 编译
         idf.py build
 
     - name: Upload firmware artifacts
