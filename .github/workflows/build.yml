@@ -33,16 +33,26 @@ jobs:
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
         
-        # 使用 idf.py 代替 make，生成完整产物
+        # 清理旧配置
+        rm -rf build sdkconfig
+        
+        # 设置目标芯片
         idf.py set-target esp32s3
-        idf.py build
+        
+        # 创建配置文件（使用 4MB Flash）
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y" > sdkconfig.defaults
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n" >> sdkconfig.defaults
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=n" >> sdkconfig.defaults
+        
+        # 使用 VERBOSE=1 输出详细编译信息
+        idf.py build VERBOSE=1
         
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
         name: openmv-esp32s3-firmware
         path: |
-          ${{ github.workspace }}/project/ksdiy/build/bootloader/*.bin
-          ${{ github.workspace }}/project/ksdiy/build/partition_table/*.bin
-          ${{ github.workspace }}/project/ksdiy/build/*.bin
+          ${{ github.workspace }}/project/ksdiy/build/bootloader.bin
+          ${{ github.workspace }}/project/ksdiy/build/partition_table/partition-table.bin
+          ${{ github.workspace }}/project/ksdiy/build/micropython.bin
         retention-days: 30
