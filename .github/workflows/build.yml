@@ -32,22 +32,12 @@ jobs:
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
-        
-        # 使用 16MB 分区表
-        cp partitions-16MiB.csv partitions.csv
-        
-        # 配置 Flash 大小为 16MB
-        echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" >> sdkconfig
-        echo "CONFIG_PARTITION_TABLE_CUSTOM=y" >> sdkconfig
-        echo "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions-16MiB.csv\"" >> sdkconfig
-        
-        # 编译
-        idf.py build
+        make
         
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: esp32s3-openmv-firmware
+        name: openmv-esp32s3-firmware
         path: |
           ${{ github.workspace }}/project/ksdiy/build/bootloader/bootloader.bin
           ${{ github.workspace }}/project/ksdiy/build/partition_table/partition-table.bin
