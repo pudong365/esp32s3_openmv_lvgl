@@ -28,51 +28,17 @@ jobs:
         cd $HOME/esp-idf
         ./install.sh
         
-    - name: Configure and Build
+    - name: Build firmware
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
-        
-        # 删除旧配置
-        rm -rf build sdkconfig
-        
-        # 设置目标芯片
-        idf.py set-target esp32s3
-        
-        # 创建适配 4MB Flash 的分区表（覆盖原文件）
-        cat > partitions.csv << EOF
-# Name,   Type, SubType, Offset,  Size, Flags
-nvs,      data, nvs,     0x9000,  0x4000,
-otadata,  data, ota,     0xd000,  0x2000,
-phy_init, data, phy,     0xf000,  0x1000,
-factory,  app,  factory, 0x10000, 0x3F0000,
-EOF
-        
-        # 创建配置文件（禁用神经网络，使用 4MB Flash）
-        cat > sdkconfig.defaults << EOF
-CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
-CONFIG_ESPTOOLPY_FLASHSIZE_16MB=n
-CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n
-CONFIG_PARTITION_TABLE_OFFSET=0x8000
-CONFIG_OPENMV_ENABLE_TFLITE_MICRO=n
-CONFIG_OPENMV_ENABLE_ESP_DL=n
-CONFIG_ESP_DL_ENABLED=n
-CONFIG_OPENMV_ENABLE_NN=n
-EOF
-        
-        # 修改 CMakeLists.txt 禁用神经网络编译选项
-        sed -i 's/CONFIG_NN_OPTIMIZED=1/CONFIG_NN_OPTIMIZED=0/g' main/CMakeLists.txt
-        sed -i 's/CONFIG_NN_OPTIMIZATIONS=1/CONFIG_NN_OPTIMIZATIONS=0/g' main/CMakeLists.txt
-        
-        # 编译
-        idf.py build
+        make
         
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
         name: openmv-esp32s3-firmware
         path: |
-          ${{ github.workspace }}/project/ksdiy/build/bootloader/bootloader.bin
-          ${{ github.workspace }}/project/ksdiy/build/partition_table/partition-table.bin
-          ${{ github.workspace }}/project/ksdiy/build/micropython.bin
+          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.bin
+          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.elf
         retention-days: 30
