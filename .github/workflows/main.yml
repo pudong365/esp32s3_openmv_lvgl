@@ -1,11 +1,11 @@
-name: Build ESP32-S3 OpenMV Firmware for N16R8
+name: Build ESP32-S3 OpenMV Firmware
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04 
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout code
@@ -26,31 +26,55 @@ jobs:
         cd $HOME/esp-idf
         ./install.sh
 
-    - name: Configure and Build firmware
+    - name: Build firmware
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
         
-        # 清理旧配置
+        echo "========== Starting build =========="
+        
+        # 清理
         rm -rf build sdkconfig
         
         # 设置目标芯片
         idf.py set-target esp32s3
         
-        # 关键：通过环境变量设置 Flash 和 PSRAM，完全避免 YAML 解析问题
-        export CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
-        export CONFIG_SPIRAM=y
-        export CONFIG_SPIRAM_MODE_OCT=y
+        # 配置硬件参数
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" >> sdkconfig
+        echo "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n" >> sdkconfig
+        echo "CONFIG_SPIRAM=y" >> sdkconfig
+        echo "CONFIG_SPIRAM_MODE_OCT=y" >> sdkconfig
         
-        # 编译
-        idf.py build
+        # 编译并捕获错误
+        idf.py build 2>&1 | tee build.log
+        BUILD_RESULT=${PIPESTATUS[0]}
+        
+        echo "========== Build result: $BUILD_RESULT =========="
+        
+        if [ $BUILD_RESULT -ne 0 ]; then
+          echo ""
+          echo "========== ERROR: Build failed =========="
+          echo "========== Last 100 lines of build log =========="
+          tail -100 build.log
+          exit 1
+        fi
+        
+        echo "========== Build successful =========="
 
-    - name: Upload firmware artifacts
+    - name: Upload firmware
       uses: actions/upload-artifact@v4
       with:
-        name: esp32s3_n16r8_firmware
+        name: openmv-firmware
         path: |
-          ${{ github.workspace }}/project/ksdiy/build/bootloader/bootloader.bin
+          ${{ github.workspace }}/project/ksdiy/build/bootloader.bin
           ${{ github.workspace }}/project/ksdiy/build/partition_table/partition-table.bin
           ${{ github.workspace }}/project/ksdiy/build/micropython.bin
         retention-days: 30
+
+    - name: Upload build log on failure
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: build-log
+        path: ${{ github.workspace }}/project/ksdiy/build.log
+        retention-days: 7
