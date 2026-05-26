@@ -33,17 +33,17 @@ jobs:
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
         
-        # 设置目标芯片为 ESP32-S3
+        # 设置目标芯片
         idf.py set-target esp32s3
         
-        # === 修正分区表配置：强制设为 16MB Flash（适配你的 N16R8 硬件）===
+        # === 修正分区表配置 ===
         echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" >> sdkconfig
         echo "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n" >> sdkconfig
-        # 确保分区表偏移量正确
         echo "CONFIG_PARTITION_TABLE_OFFSET=0x8000" >> sdkconfig
-        # 使用项目自带的分区表文件
-        echo "CONFIG_PARTITION_TABLE_CUSTOM=y" >> sdkconfig
-        echo "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions.csv\"" >> sdkconfig
+        
+        # === 禁用导致编译错误的组件 ===
+        echo "CONFIG_ESP_LCD_TOUCH_ENABLED=n" >> sdkconfig
+        echo "CONFIG_ESP_DSP_ENABLED=n" >> sdkconfig
         
         # 清理旧的编译缓存
         rm -rf build sdkconfig
