@@ -28,25 +28,28 @@ jobs:
         cd $HOME/esp-idf
         ./install.sh
         
-    - name: Configure and Build firmware
+    - name: Build firmware
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
-        rm -rf managed_components build sdkconfig
-        idf.py set-target esp32s3
+        
+        # 使用 16MB 分区表
+        cp partitions-16MiB.csv partitions.csv
+        
+        # 配置 Flash 大小为 16MB
         echo "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" >> sdkconfig
-        echo "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n" >> sdkconfig
-        echo "CONFIG_PARTITION_TABLE_OFFSET=0x8000" >> sdkconfig
-        idf.py reconfigure
+        echo "CONFIG_PARTITION_TABLE_CUSTOM=y" >> sdkconfig
+        echo "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions-16MiB.csv\"" >> sdkconfig
+        
+        # 编译
         idf.py build
         
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: openmv-esp32s3-firmware
+        name: esp32s3-openmv-firmware
         path: |
           ${{ github.workspace }}/project/ksdiy/build/bootloader/bootloader.bin
           ${{ github.workspace }}/project/ksdiy/build/partition_table/partition-table.bin
           ${{ github.workspace }}/project/ksdiy/build/micropython.bin
-          ${{ github.workspace }}/project/ksdiy/build/*.bin
         retention-days: 30
