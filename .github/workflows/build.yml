@@ -32,13 +32,17 @@ jobs:
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
-        make
+        
+        # 使用 idf.py 代替 make，生成完整产物
+        idf.py set-target esp32s3
+        idf.py build
         
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
         name: openmv-esp32s3-firmware
         path: |
-          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.bin
-          ${{ github.workspace }}/project/ksdiy/build-GENERIC_S3/*.elf
+          ${{ github.workspace }}/project/ksdiy/build/bootloader/*.bin
+          ${{ github.workspace }}/project/ksdiy/build/partition_table/*.bin
+          ${{ github.workspace }}/project/ksdiy/build/*.bin
         retention-days: 30
