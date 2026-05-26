@@ -1,15 +1,7 @@
-name: Build ESP32-S3 OpenMV Firmware
+name: Build ESP32-S3 OpenMV Firmware for N16R8
 
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
-
-env:
-  IDF_VERSION: v4.4.8
-  BOARD: ESP32_GENERIC_S3
 
 jobs:
   build:
@@ -19,192 +11,54 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
-        fetch-depth: 0
+        submodules: 'recursive'
 
-    - name: Verify submodules
-      run: |
-        cd $GITHUB_WORKSPACE
-        echo "=== Submodule status ==="
-        git submodule status
-
-        # 检查关键子模块是否存在
-        if [ ! -f "submodule/micropython/py/mpstate.c" ]; then
-          echo "ERROR: micropython submodule is empty! Re-initializing..."
-          git submodule update --init --recursive --force
-        fi
-
-        if [ ! -f "submodule/micropython/mpy-cross/main.c" ]; then
-          echo "ERROR: mpy-cross submodule is empty!"
-          git submodule update --init --recursive
-        fi
-
-        echo "=== All submodules OK ==="
-
-    - name: Install dependencies
+    - name: Install ESP-IDF dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y           git wget flex bison gperf python3 python3-pip           python3-venv cmake ninja-build ccache           libffi-dev libssl-dev dfu-util libusb-1.0-0           libncurses5-dev libncursesw5-dev
+        sudo apt-get install -y git wget flex bison gperf python3 python3-pip \
+          python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util \
+          libusb-1.0-0
 
-    - name: Setup Python environment
-      run: |
-        python3 -m pip install --upgrade pip
-        pip3 install pyserial pyparsing
-
-    - name: Cache ESP-IDF
-      uses: actions/cache@v4
-      id: cache-idf
-      with:
-        path: ~/esp-idf
-        key: ${{ runner.os }}-esp-idf-${{ env.IDF_VERSION }}-${{ hashFiles('**/CMakeLists.txt') }}
-
-    - name: Install ESP-IDF
-      if: steps.cache-idf.outputs.cache-hit != 'true'
+    - name: Install ESP-IDF v4.4.8
       run: |
         git clone -b release/v4.4 --recursive https://github.com/espressif/esp-idf.git $HOME/esp-idf
         cd $HOME/esp-idf
-        git checkout ${{ env.IDF_VERSION }}
-        git submodule update --init --recursive
-        ./install.sh esp32s3
-
-    - name: Export ESP-IDF
-      run: |
-        cd $HOME/esp-idf
-        . ./export.sh
-        echo "IDF_PATH=$IDF_PATH" >> $GITHUB_ENV
-        echo "PATH=$PATH" >> $GITHUB_ENV
-
-    - name: Build mpy-cross
-      run: |
-        cd $GITHUB_WORKSPACE/submodule/micropython/mpy-cross
-        make clean 2>/dev/null || true
-        make -j$(nproc)
-        echo "=== mpy-cross built ==="
-        ls -la mpy-cross
+        ./install.sh
 
     - name: Build firmware
       run: |
-        . $HOME/esp-idf/export.sh
+        source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
 
-        # 清理旧构建
+        # 1. 清理环境
         rm -rf build sdkconfig
 
-        # 设置目标芯片
+        # 2. 设置目标芯片
         idf.py set-target esp32s3
 
-        # 设置 Flash 大小为 4MB
-        if [ -f sdkconfig.defaults ]; then
-          # 移除旧的 flash size 配置
-          sed -i '/CONFIG_ESPTOOLPY_FLASHSIZE/d' sdkconfig.defaults
-          echo "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y" >> sdkconfig.defaults
-        else
-          echo "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y" > sdkconfig.defaults
-        fi
+        # 3. 关键：通过配置文件适配 N16R8 硬件
+        #    - Flash 大小 16MB
+        #    - 启用 Octal PSRAM
+        cat > sdkconfig.defaults << EOF
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=n
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SIZE=8
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+EOF
 
-        # 构建固件（使用完整日志）
-        idf.py build 2>&1 | tee build_full.log || BUILD_FAILED=1
-
-        # 检查构建结果
-        if [ "$BUILD_FAILED" = "1" ]; then
-          echo "========================================"
-          echo "=== BUILD FAILED - Error Analysis ==="
-          echo "========================================"
-
-          # 查找关键错误
-          echo "--- Errors found ---"
-          grep -n -E "(error:|fatal:|FAILED:|undefined reference|cannot find|No such file)" build_full.log | tail -30
-
-          echo "--- Last 50 lines ---"
-          tail -50 build_full.log
-
-          echo "--- Ninja errors ---"
-          grep -n "ninja: build stopped" build_full.log
-
-          exit 1
-        fi
-
-        echo "========================================"
-        echo "=== BUILD SUCCESS ==="
-        echo "========================================"
-
-    - name: Verify build outputs
-      run: |
-        cd $GITHUB_WORKSPACE/project/ksdiy/build
-
-        echo "=== All generated files ==="
-        find . -type f | sort
-
-        echo ""
-        echo "=== All .bin files ==="
-        find . -name "*.bin" -type f | sort
-
-        echo ""
-        echo "=== Checking required binaries ==="
-
-        # 检查 bootloader
-        if [ -f "bootloader/bootloader.bin" ]; then
-          echo "✓ bootloader/bootloader.bin"
-          ls -la bootloader/bootloader.bin
-        else
-          echo "✗ bootloader/bootloader.bin NOT FOUND"
-        fi
-
-        # 检查分区表
-        if [ -f "partition_table/partition-table.bin" ]; then
-          echo "✓ partition_table/partition-table.bin"
-          ls -la partition_table/partition-table.bin
-        else
-          echo "✗ partition_table/partition-table.bin NOT FOUND"
-        fi
-
-        # 检查主固件（可能的名字）
-        for name in micropython.bin openmv.bin ksdiy.bin firmware.bin app.bin; do
-          if [ -f "$name" ]; then
-            echo "✓ Main firmware: $name"
-            ls -la "$name"
-            MAIN_FIRMWARE="$name"
-            break
-          fi
-        done
-
-        if [ -z "$MAIN_FIRMWARE" ]; then
-          echo "✗ Main firmware .bin NOT FOUND"
-          echo "Checking build directory contents:"
-          ls -la *.bin 2>/dev/null || echo "No .bin files in root"
-          exit 1
-        fi
-
-        # 显示烧录信息
-        echo ""
-        echo "=== Flash command reference ==="
-        echo "esptool.py --chip esp32s3 write_flash \"
-        echo "  0x0000 build/bootloader/bootloader.bin \"
-        echo "  0x8000 build/partition_table/partition-table.bin \"
-        echo "  0x10000 build/$MAIN_FIRMWARE"
+        # 4. 编译
+        idf.py build
 
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
-      if: always()
       with:
-        name: openmv-esp32s3-firmware
+        name: esp32s3_n16r8_openmv_firmware
         path: |
-          ${{ github.workspace }}/project/ksdiy/build/**/*.bin
-          ${{ github.workspace }}/project/ksdiy/build/*.elf
-          ${{ github.workspace }}/project/ksdiy/build/*.map
-          ${{ github.workspace }}/project/ksdiy/build/bootloader/**/*.bin
-          ${{ github.workspace }}/project/ksdiy/build/partition_table/**/*.bin
-          ${{ github.workspace }}/project/ksdiy/build_full.log
+          ${{ github.workspace }}/project/ksdiy/build/bootloader/bootloader.bin
+          ${{ github.workspace }}/project/ksdiy/build/partition_table/partition-table.bin
+          ${{ github.workspace }}/project/ksdiy/build/micropython.bin
         retention-days: 30
-        if-no-files-found: warn
-
-    - name: Upload build logs on failure
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: build-logs-failure
-        path: |
-          ${{ github.workspace }}/project/ksdiy/build/**/*.log
-          ${{ github.workspace }}/project/ksdiy/build_full.log
-          ${{ github.workspace }}/project/ksdiy/build/CMakeFiles/*.log
-        retention-days: 7
