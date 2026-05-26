@@ -13,31 +13,38 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - name: Install ESP-IDF
+    - name: Install ESP-IDF dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
+        sudo apt-get install -y git wget flex bison gperf python3 python3-pip \
+          python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util \
+          libusb-1.0-0
+
+    - name: Install ESP-IDF v4.4.8
+      run: |
         git clone -b release/v4.4 --recursive https://github.com/espressif/esp-idf.git $HOME/esp-idf
         cd $HOME/esp-idf
         ./install.sh
 
-    - name: Build
+    - name: Build firmware
       run: |
         source $HOME/esp-idf/export.sh
         cd $GITHUB_WORKSPACE/project/ksdiy
         rm -rf build sdkconfig
         idf.py set-target esp32s3
-        printf '%s\n' "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y" > sdkconfig.defaults
-        printf '%s\n' "CONFIG_SPIRAM=y" >> sdkconfig.defaults
-        printf '%s\n' "CONFIG_SPIRAM_MODE_OCT=y" >> sdkconfig.defaults
-        printf '%s\n' "CONFIG_SPIRAM_SIZE=8" >> sdkconfig.defaults
+        cp /dev/null sdkconfig.defaults
+        echo 'CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y' | tee -a sdkconfig.defaults
+        echo 'CONFIG_SPIRAM=y' | tee -a sdkconfig.defaults
+        echo 'CONFIG_SPIRAM_MODE_OCT=y' | tee -a sdkconfig.defaults
+        echo 'CONFIG_SPIRAM_SIZE=8' | tee -a sdkconfig.defaults
         idf.py build
 
-    - name: Upload
+    - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: firmware
+        name: openmv-esp32s3-firmware
         path: |
           ${{ github.workspace }}/project/ksdiy/build/bootloader/bootloader.bin
           ${{ github.workspace }}/project/ksdiy/build/partition_table/partition-table.bin
           ${{ github.workspace }}/project/ksdiy/build/micropython.bin
+        retention-days: 30
