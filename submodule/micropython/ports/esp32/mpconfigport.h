@@ -317,3 +317,7 @@ typedef long mp_off_t;
 #endif
 
 void boardctrl_startup(void);
+
+// 启用 deflate 模块
+#define MICROPY_PY_DEFLATE                    (1)
+#define MICROPY_PY_DEFLATE_COMPRESS           (1)
