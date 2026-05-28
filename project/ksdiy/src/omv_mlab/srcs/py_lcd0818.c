@@ -21,18 +21,19 @@
 #include "py_image.h"
 #include "driver/gpio.h"
 
-
-#define RST_PIN             GPIO_NUM_1
+// ========== 修改1: 改为你的引脚 ==========
+#define RST_PIN             GPIO_NUM_12
 #define RST_PIN_WRITE(bit)  gpio_set_level(RST_PIN, bit);
 
-#define RS_PIN              GPIO_NUM_45
+#define RS_PIN              GPIO_NUM_3
 #define RS_PIN_WRITE(bit)   gpio_set_level(RS_PIN, bit);
 
-#define CS_PIN              GPIO_NUM_14
+#define CS_PIN              GPIO_NUM_13
 #define CS_PIN_WRITE(bit)   gpio_set_level(CS_PIN, bit);
 
-#define LED_PIN             GPIO_NUM_48
+#define LED_PIN             GPIO_NUM_14
 #define LED_PIN_WRITE(bit)  gpio_set_level(LED_PIN, bit);
+// ======================================
 
 //extern mp_obj_t pyb_spi_send(mp_uint_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args);
 //extern mp_obj_t pyb_spi_make_new(mp_obj_t type_in, mp_uint_t n_args, mp_uint_t n_kw, const mp_obj_t *args);
@@ -212,16 +213,16 @@ static mp_obj_t py_lcd_init(uint n_args, const mp_obj_t *args, mp_map_t *kw_args
             );
 				
 			gpio_pad_select_gpio(CS_PIN);
-			gpio_set_direction(CS_PIN,GPIO_MODE_OUTPUT);
+			gpio_set_direction(CS_PIN, GPIO_MODE_OUTPUT);
 			
 			gpio_pad_select_gpio(RS_PIN);
-			gpio_set_direction(CS_PIN,GPIO_MODE_OUTPUT);
+			gpio_set_direction(RS_PIN, GPIO_MODE_OUTPUT);  // 修改: 原为 CS_PIN
 			
 			gpio_pad_select_gpio(RST_PIN);
-			gpio_set_direction(CS_PIN,GPIO_MODE_OUTPUT);
+			gpio_set_direction(RST_PIN, GPIO_MODE_OUTPUT);  // 修改: 原为 CS_PIN
 			
 			gpio_pad_select_gpio(LED_PIN);
-			gpio_set_direction(CS_PIN,GPIO_MODE_OUTPUT);
+			gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);  // 修改: 原为 CS_PIN
 			
 			LED_PIN_WRITE(true);					
 			width = w;
@@ -229,42 +230,32 @@ static mp_obj_t py_lcd_init(uint n_args, const mp_obj_t *args, mp_map_t *kw_args
             type = lcd_type;
             backlight_init = false;
 
+            // ========== 修改2: ST7789 正确的初始化序列 ==========
             RST_PIN_WRITE(false);
             systick_sleep(100);
             RST_PIN_WRITE(true);
             systick_sleep(100);
-            lcd_write_command_byte(0x11); // Sleep Exit
-            systick_sleep(120);
-
-            // Memory Data Access Control
-            uint8_t madctl = 0xC0;
-            uint8_t bgr = py_helper_keyword_int(n_args, args, 3, kw_args, MP_OBJ_NEW_QSTR(MP_QSTR_bgr), 0);
-            lcd_write_command(0x36, 1, (uint8_t []) {madctl | (bgr<<3)});
-			lcd_write_command(0x3A, 1, (uint8_t []) {0x05});
-#if 0
-            // Interface Pixel Format
             
-			/**********add st7735驱动***************/
-			lcd_write_command(0xB1, 3, (uint8_t []) {0x05,0X3C,0X3C});
-			lcd_write_command(0xB2, 3, (uint8_t []) {0x05,0X3C,0X3C});
-			lcd_write_command(0xB3, 6, (uint8_t []) {0x05,0X3C,0X3C,0x05,0X3C,0X3C});
-			lcd_write_command(0xB4, 1, (uint8_t []) {0x03});
-			lcd_write_command(0xC0, 3, (uint8_t []) {0x28,0x08,0x04});
-			lcd_write_command(0xC1, 1, (uint8_t []) {0xC0});
-			lcd_write_command(0xC2, 2, (uint8_t []) {0x0D,0X00});
-			lcd_write_command(0xC3, 2, (uint8_t []) {0x8D,0X2A});
-			lcd_write_command(0xC4, 2, (uint8_t []) {0x8D,0XEE});
-			lcd_write_command(0xC5, 1, (uint8_t []) {0x1A});
-			lcd_write_command(0xE0, 16, (uint8_t []) {0x04,0x22,0x07,0x0A,0x2E,0x30,0x25,0x2a,0x28,0x26,0x2e,0x3a,0x00,0x01,0x03,0x13});
-			lcd_write_command(0xE1, 16, (uint8_t []) {0x04,0x16,0x06,0x0d,0x2d,0x26,0x23,0x27,0x27,0x25,0x2d,0x3b,0x00,0x01,0x04,0x13});
-#endif			// Display on
-			if (type == LCD_DISPLAY){
-				lcd_write_command_byte(0x21);  //invert color
-			}
-			lcd_write_command(0x2A, 4, (uint8_t []) {0x00,0x00,(((width-1)>>8)&0xFF),((width-1)&0xFF)});
-			lcd_write_command(0x2B, 4, (uint8_t []) {0x00,0x00,(((height-1)>>8)&0xFF),((height-1)&0xFF)});
-			lcd_write_command(0x36, 1, (uint8_t []) {0xc0});
-			lcd_write_command_byte(0x29);
+            lcd_write_command_byte(0x11);  // Sleep Exit
+            systick_sleep(120);
+            
+            // Memory Data Access Control (0x36)
+            uint8_t madctl = 0x00;  // 正常方向，不翻转
+            uint8_t bgr = py_helper_keyword_int(n_args, args, 3, kw_args, MP_OBJ_NEW_QSTR(MP_QSTR_bgr), 0);
+            lcd_write_command(0x36, 1, (uint8_t []) {madctl | (bgr << 3)});
+            
+            // Pixel Format (0x3A) - RGB565
+            lcd_write_command(0x3A, 1, (uint8_t []) {0x55});
+            
+            // Column Address Set
+            lcd_write_command(0x2A, 4, (uint8_t []) {0x00, 0x00, ((width-1)>>8)&0xFF, (width-1)&0xFF});
+            
+            // Row Address Set
+            lcd_write_command(0x2B, 4, (uint8_t []) {0x00, 0x00, ((height-1)>>8)&0xFF, (height-1)&0xFF});
+            
+            // Display On
+            lcd_write_command_byte(0x29);
+            // =================================================
 
             return mp_const_none;
         }
@@ -356,7 +347,7 @@ static mp_obj_t py_lcd_set_backlight(mp_obj_t state_obj)
             bool bit = !!mp_obj_get_int(state_obj);
             if (!backlight_init) {
 				gpio_pad_select_gpio(LED_PIN);
-				gpio_set_direction(CS_PIN,GPIO_MODE_OUTPUT);
+				gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);  // 修改: 原为 CS_PIN
                 LED_PIN_WRITE(bit); // Set first to prevent glitches.
                 backlight_init = true;
             }
@@ -514,5 +505,3 @@ void py_lcd_init0()
 {
     py_lcd_deinit();
 }
-
-
